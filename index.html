@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Taxi Map — Безкоштовна версія</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      background: #f4f4f4;
+    }
+    #map {
+      flex: 1;
+      width: 100%;
+      border-top: 2px solid #ddd;
+    }
+    button {
+      background-color: #2b6cb0;
+      color: white;
+      font-size: 16px;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      margin: 12px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    button:hover {
+      background-color: #3182ce;
+    }
+  </style>
+
+  <!-- Leaflet (OpenStreetMap) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div id="map"></div>
+  <button id="sendData">📤 Надіслати маршрут</button>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand(); // повноекранний режим
+
+    // --- Ініціалізація карти ---
+    const map = L.map('map').setView([48.6208, 22.2879], 12); // Тиса
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let from = null;
+    let to = null;
+    let fromMarker = null;
+    let toMarker = null;
+    let routeLine = null;
+
+    // Клік на карті — вибір точок
+    map.on('click', (e) => {
+      if (!from) {
+        from = e.latlng;
+        fromMarker = L.marker(from).addTo(map).bindPopup("Початок").openPopup();
+      } else if (!to) {
+        to = e.latlng;
+        toMarker = L.marker(to).addTo(map).bindPopup("Кінець").openPopup();
+        routeLine = L.polyline([from, to], { color: 'blue' }).addTo(map);
+      } else {
+        // скидання маршруту
+        map.removeLayer(fromMarker);
+        map.removeLayer(toMarker);
+        map.removeLayer(routeLine);
+        from = e.latlng;
+        to = null;
+        fromMarker = L.marker(from).addTo(map).bindPopup("Початок").openPopup();
+      }
+    });
+
+    // Надсилання координат у бот
+    document.getElementById("sendData").addEventListener("click", () => {
+      if (!from || !to) {
+        alert("Будь ласка, обери початок і кінець маршруту!");
+        return;
+      }
+
+      const data = {
+        from: { lat: from.lat, lng: from.lng },
+        to: { lat: to.lat, lng: to.lng },
+      };
+
+      tg.sendData(JSON.stringify(data));
+      tg.close();
+    });
+  </script>
+</body>
+</html>
