@@ -1,0 +1,45 @@
+```html
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taxi WebApp</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  html, body { height:100%; margin:0; font-family: sans-serif; display:flex; flex-direction:column; }
+  #map { flex:1; }
+  button { padding:12px; margin:10px; font-size:16px; background:#2b6cb0; color:white; border:none; border-radius:8px; cursor:pointer; }
+  button:hover { background:#3182ce; }
+</style>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+<div id="map"></div>
+<button id="sendData">🚕 Викликати таксі</button>
+<script>
+const tg = window.Telegram.WebApp;
+tg.expand();
+
+const map = L.map('map').setView([48.6208, 22.2879], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OpenStreetMap contributors' }).addTo(map);
+
+let from=null, to=null, fromMarker=null, toMarker=null, routeLine=null;
+
+map.on('click', e=>{
+  if(!from){ from=e.latlng; fromMarker=L.marker(from).addTo(map).bindPopup("Початок").openPopup(); }
+  else if(!to){ to=e.latlng; toMarker=L.marker(to).addTo(map).bindPopup("Кінець").openPopup(); routeLine=L.polyline([from,to],{color:'blue'}).addTo(map); }
+  else{ map.removeLayer(fromMarker); map.removeLayer(toMarker); map.removeLayer(routeLine); from=e.latlng; to=null; fromMarker=L.marker(from).addTo(map).bindPopup("Початок").openPopup(); }
+});
+
+document.getElementById("sendData").addEventListener("click", ()=>{
+  if(!from || !to){ alert("Будь ласка, обери початок і кінець маршруту!"); return; }
+  const data={ from:{lat:from.lat,lng:from.lng}, to:{lat:to.lat,lng:to.lng} };
+  tg.sendData(JSON.stringify(data));
+  tg.close();
+});
+</script>
+</body>
+</html>
+```
