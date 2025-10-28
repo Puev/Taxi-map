@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="uk">
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Go_Trevel</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>html,body{height:100%;margin:0;font-family:system-ui}#map{height:75vh}#controls{padding:8px}button{padding:10px;border-radius:8px;border:none;background:#2b6cb0;color:#fff}</style>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head><body>
+<div id="map"></div><div id="controls"><button id="locBtn">📍 Моя локація</button><button id="callBtn">🚕 Викликати таксі</button><span id="status">Оберіть точки</span></div>
+<script>
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+if(tg) tg.expand();
+const BACKEND = (location.hostname === 'localhost')? 'http://localhost:8000' : 'https://YOUR_BACKEND_URL';
+const map = L.map('map').setView([48.62,22.28],12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+let from=null, to=null, fm=null, tm=null, rl=null;
+map.on('click', e=>{
+  if(!from){ from=e.latlng; fm=L.marker(from).addTo(map).bindPopup('Початок').openPopup(); document.getElementById('status').textContent='Оберіть кінець'; }
+  else if(!to){ to=e.latlng; tm=L.marker(to).addTo(map).bindPopup('Кінець').openPopup(); rl=L.polyline([from,to],{color:'blue'}).addTo(map); document.getElementById('status').textContent='Готово'; }
+  else { if(fm) map.removeLayer(fm); if(tm) map.removeLayer(tm); if(rl) map.removeLayer(rl); from=e.latlng; to=null; fm=L.marker(from).addTo(map).bindPopup('Початок').openPopup(); document.getElementById('status').textContent='Оберіть кінець'; }
+});
+document.getElementById('locBtn').addEventListener('click', ()=>{ if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>{ map.setView([p.coords.latitude,p.coords.longitude],15); if(!from){ from=L.latLng(p.coords.latitude,p.coords.longitude); fm=L.marker(from).addTo(map).bindPopup('Початок (Ваша локація)').openPopup(); document.getElementById('status').textContent='Оберіть кінець'; } }); });
+document.getElementById('callBtn').addEventListener('click', async ()=>{
+  if(!from || !to){ alert('Оберіть дві точки'); return; }
+  const payload = { from:{lat:from.lat,lng:from.lng}, to:{lat:to.lat,lng:to.lng} };
+  if(tg){ try{ tg.sendData(JSON.stringify(payload)); } catch(e){ console.warn(e); } }
+  try{
+    const res = await fetch(BACKEND + '/orders',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+    if(res.ok){
+      const j = await res.json();
+      document.getElementById('status').textContent = 'Замовлення створено (ID: '+j.id+'). Чекаємо водія...';
+      const wsproto = (BACKEND.startsWith('https'))? 'wss':'ws';
+      const host = (new URL(BACKEND)).host;
+      const ws = new WebSocket(`${wsproto}://${host}/ws/orders/${j.id}`);
+      ws.onmessage = e=>{ const m=JSON.parse(e.data); if(m.type==='driver_assigned') document.getElementById('status').textContent='Водій назначений. ETA: '+m.eta+' хв. Ціна: '+m.price+' грн'; if(m.type==='driver_pos'){ if(window.driverMarker) window.driverMarker.setLatLng([m.lat,m.lng]); else window.driverMarker = L.marker([m.lat,m.lng]).addTo(map); } };
+    } else { alert('Не вдалося створити замовлення'); }
+  } catch(e){ console.error(e); alert('Помилка'); }
+});
+</script></body></html>
